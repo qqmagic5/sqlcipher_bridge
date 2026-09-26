@@ -1,0 +1,52 @@
+name: Test windows
+
+on:
+  workflow_call:
+
+jobs:
+  tests:    
+    name: Test windows-x64
+    timeout-minutes: 20
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Library windows-x64
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-x64
+          path: prebuilt/windows/x64/
+      
+      - name: Download bindings
+        uses: actions/download-artifact@v4
+        with:
+          name: bindings
+          path: lib
+      
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Load dart dependencies
+        run: dart pub get --no-example
+
+      - name: Test (dart run)
+        run: dart run bin/version.dart
+
+      - name: Test (exe run)
+        run: |
+          dart build cli --target bin\version.dart -o build
+          .\build\bundle\bin\version.exe
+      
+      - name: Unit tests (dart test)
+        run: dart test
+      
+      - name: Flutter integration test
+        run: |
+          cd example/flutter_example
+          flutter pub get
+          flutter test integration_test/load_test.dart -d windows

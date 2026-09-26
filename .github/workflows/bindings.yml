@@ -1,0 +1,29 @@
+name: bindings
+
+on:
+  workflow_call:
+
+jobs:
+  generate:
+    name: Generate bindings
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Dart
+        uses: dart-lang/setup-dart@v1
+
+      - name: Load dart dependencies
+        run: dart pub get
+
+      - name: Generate bindings
+        run: bash tool/bindings.sh
+
+      - name: Upload bindings
+        uses: actions/upload-artifact@v4
+        with:
+          name: bindings
+          path: lib

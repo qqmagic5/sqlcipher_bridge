@@ -1,0 +1,20 @@
+name: sqlcipher_bridge
+version: 1.0.0
+
+publish_to: none
+
+environment:
+  sdk: ^3.13.1
+
+dependencies:
+  ffi: ^2.2.0
+  libhook:
+    git: https://github.com/qqmagic5/libhook.git
+  libffigen:
+    git: https://github.com/qqmagic5/libffigen.git
+  openssl_bridge:
+    git: https://github.com/qqmagic5/openssl_bridge.git
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.6

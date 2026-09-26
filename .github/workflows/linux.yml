@@ -1,0 +1,46 @@
+name: Build linux
+
+on:
+  workflow_call:
+
+jobs:
+  build-library:
+    name: Build linux-${{ matrix.arch }}
+    timeout-minutes: 20
+    runs-on: ${{ matrix.runner }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: ubuntu-22.04
+            build_cmd: bash tool/linux.sh
+          
+          - arch: arm64
+            runner: ubuntu-22.04-arm
+            build_cmd: bash tool/linux.sh
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Install patchelf
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y patchelf
+      
+      - name: Setup Dart
+        uses: dart-lang/setup-dart@v1
+      
+      - name: Install dependencies
+        run: dart pub get
+      
+      - name: Build linux-${{ matrix.arch }}
+        run: ${{ matrix.build_cmd }}
+      
+      - name: Upload library linux-${{ matrix.arch }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ matrix.arch }}
+          path: prebuilt/linux/${{ matrix.arch }}

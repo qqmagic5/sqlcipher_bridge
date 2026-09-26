@@ -1,0 +1,60 @@
+name: Build android
+
+on:
+  workflow_call:
+
+jobs:
+  build-library:
+    name: 'Build android: arm64, arm32, x64'
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      # todo: version ndk
+      - name: Download Android NDK
+        run: |
+          curl --retry 5 --retry-delay 2 -fsSL -o /tmp/ndk.zip \
+            https://dl.google.com/android/repository/android-ndk-r27-linux.zip
+          unzip -q /tmp/ndk.zip -d /tmp/ndk
+          echo "ANDROID_NDK_HOME=/tmp/ndk/android-ndk-r27" >> "$GITHUB_ENV"
+      
+      - name: Install patchelf
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y patchelf
+      
+      - name: Setup Dart
+        uses: dart-lang/setup-dart@v1
+      
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Build android-arm64
+        run: bash tool/android.sh arm64
+      
+      - name: Build android-arm32
+        run: bash tool/android.sh arm32
+      
+      - name: Build android-x64
+        run: bash tool/android.sh x64
+      
+      - name: Upload library android-arm64
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-arm64
+          path: prebuilt/android/arm64
+
+      - name: Upload library android-arm32
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-arm32
+          path: prebuilt/android/arm32
+
+      - name: Upload library android-x86_64
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-x64
+          path: prebuilt/android/x64

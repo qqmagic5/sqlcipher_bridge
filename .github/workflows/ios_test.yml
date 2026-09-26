@@ -1,0 +1,120 @@
+name: Test ios
+
+on:
+  workflow_call:
+
+jobs:
+  tests:
+    name: Test ios-simulator-${{ matrix.arch }}
+    timeout-minutes: 20
+    runs-on: ${{ matrix.runner }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - device: "iPhone"
+            arch: arm64
+            runner: macos-15
+            min_ios_version: 12.0
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Download Library ios-simulator-${{ matrix.arch }}
+        uses: actions/download-artifact@v4
+        with:
+          name: ios-simulator-${{ matrix.arch }}
+          path: prebuilt/ios/simulator/${{ matrix.arch }}/
+      
+      - name: Download bindings
+        uses: actions/download-artifact@v4
+        with:
+          name: bindings
+          path: lib
+      
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      
+      - name: Find and boot ios simulator
+        shell: bash
+        run: |
+          SIM_ARCH="${{ matrix.arch }}"
+          RUNNER_ARCH=$(uname -m)
+          
+          if [ "$SIM_ARCH" = "arm64" ] && [ "$RUNNER_ARCH" != "arm64" ]; then
+            echo "Runner architecture mismatch for arm64 simulator test"
+            exit 1
+          fi
+
+          if [ "$SIM_ARCH" = "x64" ] && [ "$RUNNER_ARCH" != "x86_64" ]; then
+            echo "Runner architecture mismatch for x64 simulator test"
+            exit 1
+          fi
+
+          MIN_IOS_VERSION="${{ matrix.min_ios_version }}"
+          echo "Minimum required ios version from config: $MIN_IOS_VERSION"
+
+          echo "Available simulators before selection:"
+          xcrun simctl list devices available
+          
+          DEVICE_TYPE="${{ matrix.device }}"
+          echo "Target device type: $DEVICE_TYPE"
+          
+          SIM_UDID=$(xcrun simctl list devices available --json \
+            | jq -r --arg type "$DEVICE_TYPE" --arg min_ver "$MIN_IOS_VERSION" '
+                .devices
+                | to_entries[]
+                | .key as $runtime
+                | ($runtime | capture("iOS-(?<ver>.*)").ver | sub("-"; ".")) as $os_ver
+                | select(
+                    $os_ver |
+                    split(".") |
+                    map(tonumber) as $v1 |
+                    $min_ver |
+                    split(".") |
+                    map(tonumber) as $v2 |
+                    ($v1[0] > $v2[0]) or ($v1[0] == $v2[0] and ($v1[1] // 0) >= ($v2[1] // 0))
+                  )
+                | .value[]
+                | select(.name | contains($type))
+                | select(.state == "Shutdown")
+                | .udid
+              ' \
+            | head -n 1)
+          
+          if [ -z "$SIM_UDID" ]; then
+            echo "No usable simulator found for device: $SIM_DEVICE_NAME"
+            exit 1
+          fi
+
+          echo "Using simulator with id: $SIM_UDID"
+          echo "SIM_UDID=$SIM_UDID" >> "$GITHUB_ENV"
+
+          xcrun simctl boot "$SIM_UDID"
+          xcrun simctl bootstatus "$SIM_UDID" -b
+      
+      - name: Show simulator info
+        run: |
+          echo "Detailed info for simulator ID: $SIM_UDID"
+          xcrun simctl list devices available --json | jq -r --arg udid "$SIM_UDID" '
+            .devices
+            | to_entries[]
+            | .key as $runtime
+            | .value[]
+            | select(.udid == $udid)
+            | "==============================\n" +
+              "Device Name: \(.name)\n" +
+              "OS Runtime: \($runtime)\n" +
+              "==============================="
+          '
+      
+      - name: Run Flutter integration tests
+        run: |
+          cd test_flutter
+          flutter pub get
+          flutter test integration_test/load_test.dart -d "$SIM_UDID"

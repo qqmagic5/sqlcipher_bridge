@@ -1,0 +1,123 @@
+name: Test linux
+
+on:
+  workflow_call:
+
+jobs:
+  tests:
+    name: Test linux-${{ matrix.arch }}
+    timeout-minutes: 20
+    runs-on: ${{ matrix.runner }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: ubuntu-22.04
+          
+          - arch: arm64
+            runner: ubuntu-22.04-arm
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Library linux-${{ matrix.arch }}
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-${{ matrix.arch }}
+          path: prebuilt/linux/${{ matrix.arch }}/
+
+      - name: Download bindings
+        uses: actions/download-artifact@v4
+        with:
+          name: bindings
+          path: lib
+      
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang \
+            cmake \
+            ninja-build \
+            pkg-config \
+            libgtk-3-dev \
+            libstdc++-12-dev \
+            xvfb \
+            x11-utils
+      
+      - name: Get latest Flutter stable version
+        id: flutter-version
+        run: |
+          VERSION=$(git ls-remote --tags --refs https://github.com/flutter/flutter.git \
+            | grep -E 'refs/tags/[0-9]+\.[0-9]+\.[0-9]+$' \
+            | sed 's#.*refs/tags/##' \
+            | sort -V \
+            | tail -1)
+
+          if [ -z "$VERSION" ]; then
+            echo "::error::Failed to determine latest Flutter stable version"
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Flutter stable version: $VERSION"
+      
+      - name: Cache Flutter SDK
+        id: flutter-cache
+        uses: actions/cache@v4
+        with:
+          path: /opt/flutter
+          key: flutter-sdk-linux-${{ runner.arch }}-${{ steps.flutter-version.outputs.version }}
+      
+      - name: Set up Flutter
+        if: steps.flutter-cache.outputs.cache-hit != 'true'
+        run: |
+          VERSION="${{ steps.flutter-version.outputs.version }}"
+
+          git clone --depth 1 \
+            -b "$VERSION" \
+            https://github.com/flutter/flutter.git \
+            /opt/flutter
+      
+      - name: Configure Flutter
+        run: |
+          echo "/opt/flutter/bin" >> "$GITHUB_PATH"
+          export PATH="/opt/flutter/bin:$PATH"
+          flutter doctor
+
+      - name: Load dart dependencies
+        run: dart pub get --no-example
+
+      - name: Test (dart run)
+        run: dart run bin/version.dart
+
+      - name: Test (exe run)
+        run: |
+          dart build cli --target bin/version.dart -o build
+          ./build/bundle/bin/version
+      
+      - name: Unit tests (dart test)
+        run: dart test
+
+      - name: Flutter integration test
+        run: |
+          export DISPLAY=:99
+          Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
+          for i in {1..30}; do
+            if xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; then
+              break
+            fi
+
+            if [[ "$i" -eq 30 ]]; then
+              echo "Xvfb failed to start on $DISPLAY"
+              exit 1
+            fi
+            
+            sleep 1
+          done
+          cd example/flutter_example
+          flutter pub get
+          flutter test integration_test/load_test.dart -d linux

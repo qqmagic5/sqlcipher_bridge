@@ -1,0 +1,41 @@
+name: Build macos
+
+on:
+  workflow_call:
+
+jobs:
+  build-library:
+    name: Build macos-${{ matrix.arch }}
+    timeout-minutes: 20
+    runs-on: ${{ matrix.runner }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: macos-15-intel
+            build_cmd: bash tool/macos.sh
+          
+          - arch: arm64
+            runner: macos-15
+            build_cmd: bash tool/macos.sh
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup Dart
+        uses: dart-lang/setup-dart@v1
+      
+      - name: Install dependencies
+        run: dart pub get
+      
+      - name: Build macos-${{ matrix.arch }}
+        run: ${{ matrix.build_cmd }}
+      
+      - name: Upload library macos-${{ matrix.arch }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.arch }}
+          path: prebuilt/macos/${{ matrix.arch }}

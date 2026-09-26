@@ -1,0 +1,41 @@
+name: Build ios
+
+on:
+  workflow_call:
+
+jobs:
+  build-library:
+    name: Build ios-${{ matrix.platform }}-arm64
+    timeout-minutes: 20
+    runs-on: ${{ matrix.runner }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: device
+            runner: macos-15
+            build_cmd: bash tool/ios.sh device
+
+          - platform: simulator
+            runner: macos-15
+            build_cmd: bash tool/ios.sh simulator
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup Dart
+        uses: dart-lang/setup-dart@v1
+      
+      - name: Install dependencies
+        run: dart pub get
+      
+      - name: Build ios-${{ matrix.platform }}-arm64
+        run: ${{ matrix.build_cmd }}
+      
+      - name: Upload library ios-${{ matrix.platform }}-arm64
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-${{ matrix.platform }}-arm64
+          path: prebuilt/ios/${{ matrix.platform }}/arm64

@@ -1,0 +1,62 @@
+name: Test macos
+
+on:
+  workflow_call:
+
+jobs:
+  tests:
+    name: Test macos-${{ matrix.arch }}
+    timeout-minutes: 20
+    runs-on: ${{ matrix.runner }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: macos-15-intel
+          
+          - arch: arm64
+            runner: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Library macos-${{ matrix.arch }}
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-${{ matrix.arch }}
+          path: prebuilt/macos/${{ matrix.arch }}/
+      
+      - name: Download bindings
+        uses: actions/download-artifact@v4
+        with:
+          name: bindings
+          path: lib
+      
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Load dart dependencies
+        run: dart pub get --no-example
+
+      - name: Test (dart run)
+        run: dart run bin/version.dart
+
+      - name: Test (exe run)
+        run: |
+          dart build cli --target bin/version.dart -o build
+          ./build/bundle/bin/version
+      
+      - name: Unit tests (dart test)
+        run: dart test
+      
+      - name: Flutter integration test
+        run: |
+          cd example/flutter_example
+          flutter pub get
+          flutter test integration_test/load_test.dart -d macos

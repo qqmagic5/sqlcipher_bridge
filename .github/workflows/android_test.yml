@@ -1,0 +1,70 @@
+name: Test android
+
+on:
+  workflow_call:
+
+jobs:
+  tests:
+    name: Test android-${{ matrix.arch }}
+    timeout-minutes: 20
+    runs-on: ${{ matrix.runner }}
+
+    # todo
+    # Для arm64, arm32 не запускается эмулятор. Поэтому
+    # тесты для этих случаев не запускаются.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            emulator_arch: x86_64
+            runner: ubuntu-latest
+            api-level: 24
+    
+    steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/local/lib/android/sdk/ndk
+      
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Download Library android-${{ matrix.arch }}
+        uses: actions/download-artifact@v4
+        with:
+          name: android-${{ matrix.arch }}
+          path: prebuilt/android/${{ matrix.arch }}/
+      
+      - name: Download bindings
+        uses: actions/download-artifact@v4
+        with:
+          name: bindings
+          path: lib
+      
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+            
+      - name: Enable KVM
+        run: sudo chmod 666 /dev/kvm
+      
+      - name: Run Flutter integration tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api-level }}
+          arch: ${{ matrix.emulator_arch }}
+          emulator-options: -no-window -no-boot-anim
+          disable-animations: true
+          emulator-boot-timeout: 600
+          script: >
+            cd example/flutter_example &&
+            echo "=== PWD ===" &&
+            pwd &&
+            echo "=== DEVICES ===" &&
+            flutter devices &&
+            echo "=== PUB GET ===" &&
+            flutter pub get &&
+            echo "=== TEST ===" &&
+            flutter test integration_test/load_test.dart -d emulator-5554

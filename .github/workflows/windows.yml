@@ -1,0 +1,34 @@
+name: Build windows
+
+on:
+  workflow_call:
+
+jobs:
+  build-library:
+    name: Build windows-x64
+    timeout-minutes: 20
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Set up MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      
+      - name: Setup Dart
+        uses: dart-lang/setup-dart@v1
+      
+      - name: Install dependencies
+        run: dart pub get
+      
+      - name: Build windows-x64
+        run: ./tool/windows.ps1
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64
+          path: prebuilt/windows/x64
