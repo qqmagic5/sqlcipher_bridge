@@ -10,6 +10,7 @@ $Defines = "-DSQLITE_THREADSAFE=1 " +
            "-DSQLITE_ENABLE_MATH_FUNCTIONS " +
            "-DSQLITE_ENABLE_UPDATE_DELETE_LIMIT " +
            "-DSQLITE_DEFAULT_FOREIGN_KEYS=1 " +
+           "-DSQLITE_OMIT_SHARED_CACHE " +
            "-DSQLITE_HAS_CODEC=1 " +
            "-DSQLITE_TEMP_STORE=2 " +
            "-DSQLITE_EXTRA_INIT=sqlcipher_extra_init " +
